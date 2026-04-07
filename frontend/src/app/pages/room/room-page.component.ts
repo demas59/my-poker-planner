@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,7 +8,7 @@ import { PlanningService } from '../../services/planning.service';
 @Component({
   selector: 'app-room-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './room-page.component.html',
   styleUrl: './room-page.component.css'
 })
@@ -18,23 +17,24 @@ export class RoomPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
-  roomCode = '';
-  room: Room | null = null;
-  currentMember: Member | null = null;
-  selectedVote: VoteValue | null = null;
-  userName = '';
-  joinLoading = false;
-  voteLoading = false;
-  error = '';
+  readonly roomCode = signal('');
+  readonly room = signal<Room | null>(null);
+  readonly currentMember = signal<Member | null>(null);
+  readonly selectedVote = signal<VoteValue | null>(null);
+  readonly userName = signal('');
+  readonly joinLoading = signal(false);
+  readonly voteLoading = signal(false);
+  readonly error = signal('');
+  readonly roomUrl = computed(() => `${window.location.origin}/room/${this.roomCode()}`);
 
   ngOnInit(): void {
     const roomId = this.route.snapshot.paramMap.get('roomId')?.toUpperCase();
     if (!roomId) {
-      this.error = 'Code room invalide.';
+      this.error.set('Code room invalide.');
       return;
     }
 
-    this.roomCode = roomId;
+    this.roomCode.set(roomId);
     this.hydrateFromNavigationState();
     this.restoreMember();
     this.fetchRoomOnce();
@@ -42,107 +42,107 @@ export class RoomPageComponent implements OnInit {
   }
 
   joinRoom(): void {
-    const name = this.userName.trim();
+    const name = this.userName().trim();
     if (!name) {
-      this.error = 'Ton nom est obligatoire.';
+      this.error.set('Ton nom est obligatoire.');
       return;
     }
 
-    this.joinLoading = true;
-    this.error = '';
+    this.joinLoading.set(true);
+    this.error.set('');
 
-    this.planningService.joinRoom(this.roomCode, name).subscribe({
+    this.planningService.joinRoom(this.roomCode(), name).subscribe({
       next: ({ member, room }) => {
-        this.currentMember = member;
-        this.room = room;
+        this.currentMember.set(member);
+        this.room.set(room);
         this.persistMember(member.id, member.name);
-        this.joinLoading = false;
+        this.joinLoading.set(false);
       },
       error: () => {
-        this.error = 'Impossible de rejoindre cette room.';
-        this.joinLoading = false;
+        this.error.set('Impossible de rejoindre cette room.');
+        this.joinLoading.set(false);
       }
     });
   }
 
   castVote(value: VoteValue): void {
-    if (!this.room || !this.currentMember || this.voteLoading) {
+    const room = this.room();
+    const currentMember = this.currentMember();
+
+    if (!room || !currentMember || this.voteLoading()) {
       return;
     }
 
-    this.error = '';
-    this.voteLoading = true;
-    this.selectedVote = value;
-    this.planningService.vote(this.roomCode, this.currentMember.id, value).subscribe({
-      next: (room) => {
-        this.room = room;
-        this.voteLoading = false;
+    this.error.set('');
+    this.voteLoading.set(true);
+    this.selectedVote.set(value);
+    this.planningService.vote(this.roomCode(), currentMember.id, value).subscribe({
+      next: (updatedRoom) => {
+        this.room.set(updatedRoom);
+        this.voteLoading.set(false);
       },
       error: () => {
-        this.error = 'Vote impossible.';
-        this.voteLoading = false;
+        this.error.set('Vote impossible.');
+        this.voteLoading.set(false);
       }
     });
   }
 
   revealVotes(): void {
-    if (!this.room) {
+    if (!this.room()) {
       return;
     }
 
-    this.planningService.reveal(this.roomCode).subscribe({
+    this.planningService.reveal(this.roomCode()).subscribe({
       next: (room) => {
-        this.room = room;
+        this.room.set(room);
       },
       error: () => {
-        this.error = 'Impossible de reveler les votes.';
+        this.error.set('Impossible de reveler les votes.');
       }
     });
   }
 
   resetRound(): void {
-    if (!this.room) {
+    if (!this.room()) {
       return;
     }
 
-    this.selectedVote = null;
-    this.planningService.reset(this.roomCode).subscribe({
+    this.selectedVote.set(null);
+    this.planningService.reset(this.roomCode()).subscribe({
       next: (room) => {
-        this.room = room;
+        this.room.set(room);
       },
       error: () => {
-        this.error = 'Impossible de reinitialiser le tour.';
+        this.error.set('Impossible de reinitialiser le tour.');
       }
     });
   }
 
   memberVote(memberId: string): string {
-    if (!this.room) {
+    const room = this.room();
+    if (!room) {
       return '-';
     }
 
-    const vote = this.room.votes[memberId];
+    const vote = room.votes[memberId];
     return vote ?? '-';
   }
 
-  roomUrl(): string {
-    return `${window.location.origin}/room/${this.roomCode}`;
-  }
-
   private fetchRoomOnce(): void {
-    this.planningService.getRoom(this.roomCode).subscribe({
+    this.planningService.getRoom(this.roomCode()).subscribe({
       next: (room) => {
         this.applyRoomUpdate(room);
       },
       error: () => {
-        this.error = 'Impossible de charger la room.';
+        this.error.set('Impossible de charger la room.');
       }
     });
   }
 
   private startRoomStream(): void {
     this.planningService
-      .streamRoom(this.roomCode)
+      .streamRoom(this.roomCode())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (event) => {
@@ -151,26 +151,26 @@ export class RoomPageComponent implements OnInit {
           }
         },
         error: () => {
-          this.error = 'Erreur de synchronisation avec la room.';
+          this.error.set('Erreur de synchronisation avec la room.');
         }
       });
   }
 
   private hydrateFromNavigationState(): void {
     const navigationState = history.state as { room?: Room; member?: Member };
-    if (navigationState.room?.roomId?.toUpperCase() === this.roomCode) {
-      this.room = navigationState.room;
+    if (navigationState.room?.roomId?.toUpperCase() === this.roomCode()) {
+      this.room.set(navigationState.room);
     }
 
     if (navigationState.member?.id && navigationState.member?.name) {
-      this.currentMember = navigationState.member;
-      this.userName = navigationState.member.name;
+      this.currentMember.set(navigationState.member);
+      this.userName.set(navigationState.member.name);
       this.persistMember(navigationState.member.id, navigationState.member.name);
     }
   }
 
   private restoreMember(): void {
-    if (this.currentMember) {
+    if (this.currentMember()) {
       return;
     }
 
@@ -189,7 +189,11 @@ export class RoomPageComponent implements OnInit {
         id: parsed.memberId,
         name: parsed.name
       };
-      this.userName = parsed.name;
+      this.currentMember.set({
+        id: parsed.memberId,
+        name: parsed.name
+      });
+      this.userName.set(parsed.name);
     } catch {
       sessionStorage.removeItem(this.memberStorageKey());
     }
@@ -201,35 +205,37 @@ export class RoomPageComponent implements OnInit {
 
   private clearMemberSession(): void {
     sessionStorage.removeItem(this.memberStorageKey());
-    this.selectedVote = null;
+    this.selectedVote.set(null);
   }
 
   private applyRoomUpdate(room: Room): void {
-    this.room = room;
+    this.room.set(room);
 
-    if (!this.currentMember) {
+    const currentMember = this.currentMember();
+
+    if (!currentMember) {
       return;
     }
 
-    const existsInRoom = room.members.some((member) => member.id === this.currentMember?.id);
+    const existsInRoom = room.members.some((member) => member.id === currentMember.id);
     if (!existsInRoom) {
       this.clearMemberSession();
-      this.currentMember = null;
+      this.currentMember.set(null);
       return;
     }
 
     if (room.revealed) {
-      const myVote = room.votes[this.currentMember.id];
-      this.selectedVote = (myVote as VoteValue) ?? this.selectedVote;
+      const myVote = room.votes[currentMember.id];
+      this.selectedVote.set((myVote as VoteValue) ?? this.selectedVote());
       return;
     }
 
-    if (!room.votes[this.currentMember.id]) {
-      this.selectedVote = null;
+    if (!room.votes[currentMember.id]) {
+      this.selectedVote.set(null);
     }
   }
 
   private memberStorageKey(): string {
-    return `pp_member_${this.roomCode}`;
+    return `pp_member_${this.roomCode()}`;
   }
 }

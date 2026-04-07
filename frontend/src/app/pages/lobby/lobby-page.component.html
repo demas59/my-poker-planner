@@ -6,21 +6,23 @@
     <div class="form-grid">
       <label>
         Ton nom
-        <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
+        <input type="text" [ngModel]="userName()" (ngModelChange)="userName.set($event)" placeholder="Ex: Alex" />
       </label>
 
-      <button type="button" class="btn primary" (click)="createRoom()" [disabled]="loading">
+      <button type="button" class="btn primary" (click)="createRoom()" [disabled]="loading()">
         Creer un salon
       </button>
 
       <label>
         Ou entrer un code room
-        <input type="text" maxlength="6" [(ngModel)]="roomCode" placeholder="ABC123" />
+        <input type="text" maxlength="6" [ngModel]="roomCode()" (ngModelChange)="roomCode.set($event)" placeholder="ABC123" />
       </label>
 
-      <button type="button" class="btn" (click)="goToRoom()" [disabled]="loading">Acceder a la room</button>
+      <button type="button" class="btn" (click)="goToRoom()" [disabled]="loading()">Acceder a la room</button>
     </div>
 
-    <p class="error" *ngIf="error">{{ error }}</p>
+    @if (error()) {
+      <p class="error">{{ error() }}</p>
+    }
   </section>
 </main>
