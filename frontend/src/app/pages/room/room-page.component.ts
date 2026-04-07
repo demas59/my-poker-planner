@@ -185,10 +185,6 @@ export class RoomPageComponent implements OnInit {
         return;
       }
 
-      this.currentMember = {
-        id: parsed.memberId,
-        name: parsed.name
-      };
       this.currentMember.set({
         id: parsed.memberId,
         name: parsed.name
