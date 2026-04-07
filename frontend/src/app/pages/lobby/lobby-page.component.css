@@ -1,0 +1,63 @@
+.shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-main);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: 0 20px 48px rgba(2, 8, 23, 0.25);
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+p {
+  color: var(--text-soft);
+  margin-top: 0.4rem;
+}
+
+.form-grid {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+
+input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  font-size: 1rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #cbd5e1;
+}
+
+.btn.primary {
+  background: var(--primary);
+  color: white;
+}
+
+.error {
+  margin-top: 0.75rem;
+  color: #b91c1c;
+  font-weight: 600;
+}

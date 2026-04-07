@@ -1,0 +1,160 @@
+.shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-main);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: 0 20px 48px rgba(2, 8, 23, 0.25);
+  margin-bottom: 1rem;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+p {
+  color: var(--text-soft);
+  margin-top: 0.35rem;
+}
+
+.back-link {
+  color: var(--primary-strong);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+label {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+
+input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  font-size: 1rem;
+  width: 100%;
+}
+
+.join-row {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #cbd5e1;
+}
+
+.btn.primary {
+  background: var(--primary);
+  color: white;
+}
+
+.board header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.votes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.vote-card {
+  border: 1px solid #bae6fd;
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border-radius: 12px;
+  padding: 0.85rem 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vote-card.selected {
+  background: var(--primary-strong);
+  color: white;
+  border-color: var(--primary-strong);
+}
+
+.members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.members li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.badge {
+  min-width: 70px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.badge.revealed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.error {
+  color: #fecaca;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .join-row {
+    grid-template-columns: 1fr;
+  }
+
+  .board header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions .btn {
+    flex: 1;
+  }
+}

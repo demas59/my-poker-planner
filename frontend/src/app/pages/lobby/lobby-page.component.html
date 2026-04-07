@@ -1,0 +1,26 @@
+<main class="shell">
+  <section class="card intro">
+    <h1>Poker Planner</h1>
+    <p>Cree un salon puis partage le lien de la room a ton equipe.</p>
+
+    <div class="form-grid">
+      <label>
+        Ton nom
+        <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
+      </label>
+
+      <button type="button" class="btn primary" (click)="createRoom()" [disabled]="loading">
+        Creer un salon
+      </button>
+
+      <label>
+        Ou entrer un code room
+        <input type="text" maxlength="6" [(ngModel)]="roomCode" placeholder="ABC123" />
+      </label>
+
+      <button type="button" class="btn" (click)="goToRoom()" [disabled]="loading">Acceder a la room</button>
+    </div>
+
+    <p class="error" *ngIf="error">{{ error }}</p>
+  </section>
+</main>
