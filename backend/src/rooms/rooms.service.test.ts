@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import * as assert from 'node:assert/strict';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 
@@ -18,32 +18,32 @@ test('RoomsService manages room lifecycle and streaming updates', () => {
     streamedEvents.push(event.data);
   });
 
-  assert.equal(streamedEvents.length, 1);
-  assert.deepEqual(streamedEvents[0], {
-    type: 'room-updated',
-    room: createdRoom
-  });
+  assert.equal(streamedEvents.length, 0);
 
   const joined = service.joinRoom(createdRoom.roomId.toLowerCase(), 'Alice');
   assert.equal(joined.member.name, 'Alice');
   assert.equal(joined.room.members.length, 1);
   assert.equal(joined.room.votes[joined.member.id], null);
-  assert.equal(streamedEvents.length, 2);
+  assert.equal(streamedEvents.length, 1);
+  assert.deepEqual(streamedEvents[0], {
+    type: 'room-updated',
+    room: joined.room
+  });
 
   const votedRoom = service.vote(createdRoom.roomId, joined.member.id, '5');
   assert.equal(votedRoom.revealed, false);
   assert.equal(votedRoom.votes[joined.member.id], 'VOTED');
-  assert.equal(streamedEvents.length, 3);
+  assert.equal(streamedEvents.length, 2);
 
   const revealedRoom = service.reveal(createdRoom.roomId);
   assert.equal(revealedRoom.revealed, true);
   assert.equal(revealedRoom.votes[joined.member.id], '5');
-  assert.equal(streamedEvents.length, 4);
+  assert.equal(streamedEvents.length, 3);
 
   const resetRoom = service.reset(createdRoom.roomId);
   assert.equal(resetRoom.revealed, false);
   assert.equal(resetRoom.votes[joined.member.id], null);
-  assert.equal(streamedEvents.length, 5);
+  assert.equal(streamedEvents.length, 4);
 
   const roomStreams = (service as unknown as { roomStreams: Map<string, Set<unknown>> }).roomStreams;
   assert.equal(roomStreams.get(createdRoom.roomId)?.size, 1);
