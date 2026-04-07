@@ -2,57 +2,68 @@
   <section class="card top">
     <a routerLink="/" class="back-link">Retour</a>
     <h1>Planning Poker</h1>
-    <p>Room: {{ roomCode }}</p>
+    <p>Room: {{ roomCode() }}</p>
     <label>
       Lien de partage
       <input class="link-input" [value]="roomUrl()" readonly />
     </label>
   </section>
 
-  <section class="card join-card" *ngIf="!currentMember">
-    <h2>Rejoindre la room</h2>
-    <p>Entre ton nom pour participer au vote.</p>
-    <div class="join-row">
-      <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
-      <button type="button" class="btn primary" (click)="joinRoom()" [disabled]="joinLoading">
-        {{ joinLoading ? 'Connexion...' : 'Rejoindre' }}
-      </button>
-    </div>
-  </section>
-
-  <section class="card board" *ngIf="room as currentRoom">
-    <header>
-      <div>
-        <h2>Votes</h2>
-        <p>{{ currentRoom.members.length }} participant(s)</p>
-        <p *ngIf="!currentMember">Rejoins la room pour voter et reveler.</p>
+  @if (!currentMember()) {
+    <section class="card join-card">
+      <h2>Rejoindre la room</h2>
+      <p>Entre ton nom pour participer au vote.</p>
+      <div class="join-row">
+        <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
+        <button type="button" class="btn primary" (click)="joinRoom()" [disabled]="joinLoading()">
+          {{ joinLoading() ? 'Connexion...' : 'Rejoindre' }}
+        </button>
       </div>
-      <div class="actions">
-        <button type="button" class="btn" (click)="revealVotes()" [disabled]="!currentMember">Reveler</button>
-        <button type="button" class="btn" (click)="resetRound()" [disabled]="!currentMember">Nouveau tour</button>
+    </section>
+  }
+
+  @if (room(); as currentRoom) {
+    <section class="card board">
+      <header>
+        <div>
+          <h2>Votes</h2>
+          <p>{{ currentRoom.members.length }} participant(s)</p>
+          @if (!currentMember()) {
+            <p>Rejoins la room pour voter et reveler.</p>
+          }
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" (click)="revealVotes()" [disabled]="!currentMember()">Reveler</button>
+          <button type="button" class="btn" (click)="resetRound()" [disabled]="!currentMember()">Nouveau tour</button>
+        </div>
+      </header>
+
+      <div class="votes-grid">
+        @for (value of currentRoom.fibonacci; track value) {
+          <button
+            type="button"
+            class="vote-card"
+            [class.selected]="selectedVote() === value"
+            [disabled]="!currentMember() || voteLoading()"
+            (click)="castVote(value)"
+          >
+            {{ value }}
+          </button>
+        }
       </div>
-    </header>
 
-    <div class="votes-grid">
-      <button
-        type="button"
-        class="vote-card"
-        *ngFor="let value of currentRoom.fibonacci"
-        [class.selected]="selectedVote === value"
-        [disabled]="!currentMember || voteLoading"
-        (click)="castVote(value)"
-      >
-        {{ value }}
-      </button>
-    </div>
+      <ul class="members">
+        @for (member of currentRoom.members; track member.id) {
+          <li>
+            <span class="name">{{ member.name }}</span>
+            <span class="badge" [class.revealed]="currentRoom.revealed">{{ memberVote(member.id) }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+  }
 
-    <ul class="members">
-      <li *ngFor="let member of currentRoom.members">
-        <span class="name">{{ member.name }}</span>
-        <span class="badge" [class.revealed]="currentRoom.revealed">{{ memberVote(member.id) }}</span>
-      </li>
-    </ul>
-  </section>
-
-  <p class="error" *ngIf="error">{{ error }}</p>
+  @if (error()) {
+    <p class="error">{{ error() }}</p>
+  }
 </main>
