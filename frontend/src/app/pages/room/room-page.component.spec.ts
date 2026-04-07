@@ -78,7 +78,9 @@ describe('RoomPageComponent', () => {
   });
 
   it('hydrates, restores and starts synchronization on init', () => {
-    const { component } = createComponent();
+    const { component, planningService } = createComponent();
+    planningService.getRoom.mockReturnValue(of(room));
+    planningService.streamRoom.mockReturnValue(of());
     const hydrateSpy = vi.spyOn(component as never, 'hydrateFromNavigationState' as never);
     const restoreSpy = vi.spyOn(component as never, 'restoreMember' as never);
     const fetchSpy = vi.spyOn(component as never, 'fetchRoomOnce' as never);
@@ -293,6 +295,7 @@ describe('RoomPageComponent', () => {
     expect(component.currentMember()).toEqual(currentMember);
     expect(component.userName()).toBe('Alice');
 
+    component.currentMember.set(null);
     sessionStorage.setItem('pp_member_ABCD', '{invalid');
     (component as never).restoreMember();
     expect(sessionStorage.getItem('pp_member_ABCD')).toBe(null);

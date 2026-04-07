@@ -53,18 +53,17 @@ describe('PlanningService', () => {
       close: () => void;
     } | undefined;
 
-    vi.stubGlobal(
-      'EventSource',
-      vi.fn().mockImplementation(() => {
-        source = {
-          onmessage: null,
-          onerror: null,
-          close
-        };
+    const EventSourceMock = vi.fn(function MockEventSource(this: typeof source) {
+      source = {
+        onmessage: null,
+        onerror: null,
+        close
+      };
 
-        return source;
-      })
-    );
+      return source;
+    });
+
+    vi.stubGlobal('EventSource', EventSourceMock);
 
     const next = vi.fn();
     const subscription = service.streamRoom('room').subscribe(next);
@@ -73,7 +72,7 @@ describe('PlanningService', () => {
     source?.onerror?.();
     subscription.unsubscribe();
 
-    expect(EventSource).toHaveBeenCalledWith('http://localhost:3000/rooms/ROOM/events');
+    expect(EventSourceMock).toHaveBeenCalledWith('http://localhost:3000/rooms/ROOM/events');
     expect(next).toHaveBeenCalledWith({ type: 'room-updated', room: { roomId: 'ROOM' } });
     expect(close).toHaveBeenCalledOnce();
   });
