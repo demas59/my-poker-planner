@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -13,6 +14,7 @@ import { PlanningService } from '../../services/planning.service';
   styleUrl: './room-page.component.css'
 })
 export class RoomPageComponent implements OnInit {
+  private readonly document = inject(DOCUMENT);
   private readonly planningService = inject(PlanningService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -25,7 +27,10 @@ export class RoomPageComponent implements OnInit {
   readonly joinLoading = signal(false);
   readonly voteLoading = signal(false);
   readonly error = signal('');
-  readonly roomUrl = computed(() => `${window.location.origin}/room/${this.roomCode()}`);
+  readonly roomUrl = computed(() => {
+    const origin = this.document.location?.origin ?? '';
+    return `${origin}/room/${this.roomCode()}`;
+  });
 
   ngOnInit(): void {
     const roomId = this.route.snapshot.paramMap.get('roomId')?.toUpperCase();

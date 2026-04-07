@@ -14,7 +14,7 @@
       <h2>Rejoindre la room</h2>
       <p>Entre ton nom pour participer au vote.</p>
       <div class="join-row">
-        <input type="text" [ngModel]="userName()" (ngModelChange)="userName.set($event)" placeholder="Ex: Alex" />
+        <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
         <button type="button" class="btn primary" (click)="joinRoom()" [disabled]="joinLoading()">
           {{ joinLoading() ? 'Connexion...' : 'Rejoindre' }}
         </button>
