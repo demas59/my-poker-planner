@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { JoinRoomResponse, Room, RoomEvent, VoteValue } from '../models/planning.model';
+import { JoinRoomResponse, MemberRole, Room, RoomEvent } from '../models/planning.model';
 
 @Injectable({ providedIn: 'root' })
 export class PlanningService {
@@ -13,8 +13,8 @@ export class PlanningService {
     return this.http.post<Room>(`${this.baseUrl}/rooms`, {});
   }
 
-  joinRoom(roomId: string, name: string): Observable<JoinRoomResponse> {
-    return this.http.post<JoinRoomResponse>(`${this.baseUrl}/rooms/${roomId.toUpperCase()}/join`, { name });
+  joinRoom(roomId: string, name: string, role: MemberRole = MemberRole.Participant): Observable<JoinRoomResponse> {
+    return this.http.post<JoinRoomResponse>(`${this.baseUrl}/rooms/${roomId.toUpperCase()}/join`, { name, role });
   }
 
   getRoom(roomId: string): Observable<Room> {
@@ -39,11 +39,25 @@ export class PlanningService {
     });
   }
 
-  vote(roomId: string, memberId: string, value: VoteValue): Observable<Room> {
+  vote(roomId: string, memberId: string, value: string): Observable<Room> {
     return this.http.post<Room>(`${this.baseUrl}/rooms/${roomId.toUpperCase()}/vote`, {
       memberId,
       value
     });
+  }
+
+  leaveRoom(roomId: string, memberId: string): Observable<{ left: boolean }> {
+    return this.http.post<{ left: boolean }>(`${this.baseUrl}/rooms/${roomId.toUpperCase()}/leave`, { memberId });
+  }
+
+  leaveRoomWithBeacon(roomId: string, memberId: string): void {
+    const payload = JSON.stringify({ memberId });
+    const url = `${this.baseUrl}/rooms/${roomId.toUpperCase()}/leave`;
+
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([payload], { type: 'application/json' });
+      navigator.sendBeacon(url, blob);
+    }
   }
 
   reveal(roomId: string): Observable<Room> {

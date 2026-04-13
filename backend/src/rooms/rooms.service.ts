@@ -3,20 +3,27 @@ import { MessageEvent } from '@nestjs/common';
 import { nanoid } from 'nanoid';
 import { Observable, Subject } from 'rxjs';
 import { finalize } from 'rxjs/operators';
-import { Member, Room, RoomEvent, RoomView, VoteValue } from './rooms.types';
+import { Member, MemberRole, Room, RoomEvent } from './rooms.types';
 
-const FIBONACCI_VALUES: VoteValue[] = ['0', '1', '2', '3', '5', '8', '13', '21', '34', '55', '89', '?'];
+interface StoredRoom {
+  roomId: string;
+  members: Member[];
+  votes: Record<string, string>;
+  revealed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 @Injectable()
 export class RoomsService {
-  private readonly rooms = new Map<string, Room>();
+  private readonly rooms = new Map<string, StoredRoom>();
   private readonly roomStreams = new Map<string, Set<Subject<MessageEvent>>>();
 
-  createRoom(): RoomView {
+  createRoom(): Room {
     const roomId = nanoid(6).toUpperCase();
     const now = new Date().toISOString();
 
-    const room: Room = {
+    const room: StoredRoom = {
       roomId,
       members: [],
       votes: {},
@@ -29,7 +36,7 @@ export class RoomsService {
     return this.toView(room);
   }
 
-  getRoom(roomId: string): RoomView {
+  getRoom(roomId: string): Room {
     return this.toView(this.getRoomOrThrow(roomId));
   }
 
@@ -64,12 +71,13 @@ export class RoomsService {
     );
   }
 
-  joinRoom(roomId: string, name: string) {
+  joinRoom(roomId: string, name: string, role: MemberRole = MemberRole.Participant) {
     const room = this.getRoomOrThrow(roomId);
 
     const member: Member = {
       id: nanoid(8),
-      name
+      name,
+      role
     };
 
     room.members.push(member);
@@ -82,27 +90,32 @@ export class RoomsService {
     };
   }
 
-  vote(roomId: string, memberId: string, value: VoteValue): RoomView {
+  vote(roomId: string, memberId: string, value: string): Room {
     const room = this.getRoomOrThrow(roomId);
 
-    if (!FIBONACCI_VALUES.includes(value)) {
-      throw new BadRequestException('Valeur de vote invalide.');
-    }
-
-    if (!room.members.some((member) => member.id === memberId)) {
+    const member = room.members.find((entry) => entry.id === memberId);
+    if (!member) {
       throw new NotFoundException('Participant introuvable dans ce salon.');
     }
 
+    if (member.role !== MemberRole.Participant) {
+      throw new BadRequestException('Un observateur ne peut pas voter.');
+    }
+
     room.votes[memberId] = value;
-    room.revealed = false;
     room.updatedAt = new Date().toISOString();
     this.publishRoom(room);
 
     return this.toView(room);
   }
 
-  reveal(roomId: string): RoomView {
+  reveal(roomId: string): Room {
     const room = this.getRoomOrThrow(roomId);
+
+    if (!this.areAllParticipantsVoted(room)) {
+      throw new BadRequestException('Tous les participants doivent voter avant de reveler.');
+    }
+
     room.revealed = true;
     room.updatedAt = new Date().toISOString();
     this.publishRoom(room);
@@ -110,7 +123,7 @@ export class RoomsService {
     return this.toView(room);
   }
 
-  reset(roomId: string): RoomView {
+  reset(roomId: string): Room {
     const room = this.getRoomOrThrow(roomId);
     room.revealed = false;
     room.votes = {};
@@ -120,7 +133,35 @@ export class RoomsService {
     return this.toView(room);
   }
 
-  private getRoomOrThrow(roomId: string): Room {
+  leaveRoom(roomId: string, memberId: string): { left: boolean } {
+    const room = this.getRoomOrThrow(roomId);
+    const memberIndex = room.members.findIndex((member) => member.id === memberId);
+
+    if (memberIndex === -1) {
+      throw new NotFoundException('Participant introuvable dans ce salon.');
+    }
+
+    const [member] = room.members.splice(memberIndex, 1);
+    delete room.votes[member.id];
+    room.updatedAt = new Date().toISOString();
+
+    if (room.members.length === 0) {
+      this.rooms.delete(room.roomId);
+      const subscribers = this.roomStreams.get(room.roomId);
+      if (subscribers) {
+        for (const subscriber of subscribers) {
+          subscriber.complete();
+        }
+        this.roomStreams.delete(room.roomId);
+      }
+      return { left: true };
+    }
+
+    this.publishRoom(room);
+    return { left: true };
+  }
+
+  private getRoomOrThrow(roomId: string): StoredRoom {
     const room = this.rooms.get(roomId.toUpperCase());
     if (!room) {
       throw new NotFoundException('Salon introuvable.');
@@ -129,25 +170,36 @@ export class RoomsService {
     return room;
   }
 
-  private toView(room: Room): RoomView {
+  private toView(room: StoredRoom): Room {
+    const participants = room.members.filter((member) => member.role === MemberRole.Participant);
+    const participantsVotedCount = participants.filter((member) => Boolean(room.votes[member.id])).length;
+    const allParticipantsVoted = participants.length > 0 && participantsVotedCount === participants.length;
+
     const votes = room.revealed
       ? room.votes
       : room.members.reduce<Record<string, 'VOTED' | null>>((acc, member) => {
-          acc[member.id] = room.votes[member.id] ? 'VOTED' : null;
-          return acc;
-        }, {});
+        acc[member.id] = room.votes[member.id] ? 'VOTED' : null;
+        return acc;
+      }, {});
 
     return {
       roomId: room.roomId,
       members: room.members,
       revealed: room.revealed,
       votes,
-      fibonacci: FIBONACCI_VALUES,
+      participantsCount: participants.length,
+      participantsVotedCount,
+      allParticipantsVoted,
       updatedAt: room.updatedAt
     };
   }
 
-  private publishRoom(room: Room): void {
+  private areAllParticipantsVoted(room: StoredRoom): boolean {
+    const participants = room.members.filter((member) => member.role === MemberRole.Participant);
+    return participants.length > 0 && participants.every((member) => Boolean(room.votes[member.id]));
+  }
+
+  private publishRoom(room: StoredRoom): void {
     const subscribers = this.roomStreams.get(room.roomId);
     if (!subscribers?.size) {
       return;

@@ -1,69 +1,122 @@
 <main class="shell">
-  <section class="card top">
-    <a routerLink="/" class="back-link">Retour</a>
-    <h1>Planning Poker</h1>
-    <p>Room: {{ roomCode() }}</p>
-    <label>
-      Lien de partage
-      <input class="link-input" [value]="roomUrl()" readonly />
-    </label>
+  @if (roomNotFound()) {
+  <section class="card join-card">
+    <h2>Cette room n'existe plus</h2>
+    <p>Le lien que tu as utilise correspond a une room qui n'existe plus. Tu peux en creer une nouvelle.</p>
+    <div class="join-row">
+      <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
+      <select [ngModel]="userRole()" (ngModelChange)="userRole.set($event)" aria-label="Type d'utilisateur">
+        <option [ngValue]="memberRoleEnum.Participant">Participant</option>
+        <option [ngValue]="memberRoleEnum.Observer">Observateur</option>
+      </select>
+      <button type="button" class="btn primary" (click)="recreateRoom()" [disabled]="recreateLoading()">
+        {{ recreateLoading() ? 'Creation...' : 'Recreer un salon' }}
+      </button>
+    </div>
+    @if (error()) {
+    <p class="error">{{ error() }}</p>
+    }
+  </section>
+  }
+
+  @if (!roomNotFound() && !currentMember()) {
+  <section class="card join-card">
+    <h2>Rejoindre la room</h2>
+    <p>Choisis ton role puis entre ton nom pour participer au sprint.</p>
+    <div class="join-row">
+      <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
+      <select [ngModel]="userRole()" (ngModelChange)="userRole.set($event)" aria-label="Type d'utilisateur">
+        <option [ngValue]="memberRoleEnum.Participant">Participant</option>
+        <option [ngValue]="memberRoleEnum.Observer">Observateur</option>
+      </select>
+      <button type="button" class="btn primary" (click)="joinRoom()" [disabled]="joinLoading()">
+        {{ joinLoading() ? 'Connexion...' : 'Rejoindre' }}
+      </button>
+    </div>
+  </section>
+  }
+
+  @if (!roomNotFound()) {
+  @if (room(); as currentRoom) {
+  <section class="card board">
+    <header>
+      <div>
+        <h2>Votes</h2>
+        <p>{{ currentRoom.participantsVotedCount }}/{{ currentRoom.participantsCount }} participants ont vote</p>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" (click)="revealVotes()" [disabled]="!canReveal()">Reveler</button>
+        @if (!currentRoom.allParticipantsVoted) {
+        <span class="help-tip" tabindex="0" aria-label="Information revele">
+          i
+          <span class="help-tip-text">Les votes sont reveles uniquement quand tous les participants ont vote.</span>
+        </span>
+        }
+        <button type="button" class="btn" (click)="resetRound()" [disabled]="!currentMember()">Nouveau tour</button>
+      </div>
+    </header>
+
+    @if (canVote()) {
+    <div class="votes-grid">
+      @for (value of voteOptions; track value; let voteIndex = $index) {
+      <button type="button" class="vote-card" [class.selected]="selectedVote() === value" [disabled]="voteLoading()"
+        (click)="castVote(value)" (keydown)="onVoteKeydown($event, voteIndex)">
+        {{ value }}
+      </button>
+      }
+    </div>
+    } @else {
+    <div class="role-hint-row">
+      <span class="help-tip" tabindex="0" aria-label="Information observateur">
+        i
+        <span class="help-tip-text">Un observateur ne vote pas, mais peut reveler les votes et lancer un nouveau
+          tour.</span>
+      </span>
+    </div>
+    }
+
+    <ul class="members">
+      @for (member of currentRoom.members; track member.id) {
+      <li>
+        <span class="name">
+          {{ member.name }}
+          <span class="role-tag" [class.observer]="member.role === memberRoleEnum.Observer">
+            {{ member.role === memberRoleEnum.Observer ? 'OBS' : 'PART' }}
+          </span>
+        </span>
+        @if(member.role === memberRoleEnum.Participant) {
+        <span [class]="'badge ' + memberVoteClass(member.id) + (currentRoom.revealed ? ' revealed' : '')">
+          {{ member.role === memberRoleEnum.Observer ? '-' : memberVote(member.id) }}
+        </span>
+        }
+      </li>
+      }
+    </ul>
   </section>
 
-  @if (!currentMember()) {
-    <section class="card join-card">
-      <h2>Rejoindre la room</h2>
-      <p>Entre ton nom pour participer au vote.</p>
-      <div class="join-row">
-        <input type="text" [(ngModel)]="userName" placeholder="Ex: Alex" />
-        <button type="button" class="btn primary" (click)="joinRoom()" [disabled]="joinLoading()">
-          {{ joinLoading() ? 'Connexion...' : 'Rejoindre' }}
-        </button>
+  @if (currentRoom.revealed && voteChartItems().length) {
+  <section class="card results-card">
+    <h3>Repartition des votes</h3>
+    @if (currentRoom.revealed) {
+    <p class="consensus">{{ consensusLabel() }}</p>
+    }
+    <div class="bar-chart" role="img" aria-label="Diagramme en batons des votes reveles">
+      @for (item of voteChartItems(); track item.value) {
+      <div class="bar-item">
+        <span class="bar-count">{{ item.count }}</span>
+        <div class="bar-track">
+          <span [class]="'bar-fill ' + item.colorClass" [style.height.%]="item.heightPercent"></span>
+        </div>
+        <span class="bar-label">{{ item.value }}</span>
       </div>
-    </section>
+      }
+    </div>
+  </section>
+  }
+  }
   }
 
-  @if (room(); as currentRoom) {
-    <section class="card board">
-      <header>
-        <div>
-          <h2>Votes</h2>
-          <p>{{ currentRoom.members.length }} participant(s)</p>
-          @if (!currentMember()) {
-            <p>Rejoins la room pour voter et reveler.</p>
-          }
-        </div>
-        <div class="actions">
-          <button type="button" class="btn" (click)="revealVotes()" [disabled]="!currentMember()">Reveler</button>
-          <button type="button" class="btn" (click)="resetRound()" [disabled]="!currentMember()">Nouveau tour</button>
-        </div>
-      </header>
-
-      <div class="votes-grid">
-        @for (value of currentRoom.fibonacci; track value) {
-          <button
-            type="button"
-            class="vote-card"
-            [class.selected]="selectedVote() === value"
-            [disabled]="!currentMember() || voteLoading()"
-            (click)="castVote(value)"
-          >
-            {{ value }}
-          </button>
-        }
-      </div>
-
-      <ul class="members">
-        @for (member of currentRoom.members; track member.id) {
-          <li>
-            <span class="name">{{ member.name }}</span>
-            <span class="badge" [class.revealed]="currentRoom.revealed">{{ memberVote(member.id) }}</span>
-          </li>
-        }
-      </ul>
-    </section>
-  }
-
-  @if (error()) {
-    <p class="error">{{ error() }}</p>
+  @if (!roomNotFound() && error()) {
+  <p class="error">{{ error() }}</p>
   }
 </main>

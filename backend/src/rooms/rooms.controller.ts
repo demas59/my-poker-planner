@@ -1,10 +1,10 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Sse } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
-import { VoteValue } from './rooms.types';
+import { JoinRoomDto, VoteDto, LeaveRoomDto } from './dto';
 
 @Controller('rooms')
 export class RoomsController {
-  constructor(private readonly roomsService: RoomsService) {}
+  constructor(private readonly roomsService: RoomsService) { }
 
   @Post()
   createRoom() {
@@ -22,25 +22,18 @@ export class RoomsController {
   }
 
   @Post(':roomId/join')
-  joinRoom(@Param('roomId') roomId: string, @Body() body: { name?: string }) {
-    const name = body?.name?.trim();
-    if (!name) {
-      throw new BadRequestException('Le nom est obligatoire.');
-    }
-
-    return this.roomsService.joinRoom(roomId, name);
+  joinRoom(@Param('roomId') roomId: string, @Body() joinRoomDto: JoinRoomDto) {
+    return this.roomsService.joinRoom(roomId, joinRoomDto.name.trim(), joinRoomDto.role);
   }
 
   @Post(':roomId/vote')
-  vote(
-    @Param('roomId') roomId: string,
-    @Body() body: { memberId?: string; value?: VoteValue }
-  ) {
-    if (!body.memberId || !body.value) {
-      throw new BadRequestException('memberId et value sont obligatoires.');
-    }
+  vote(@Param('roomId') roomId: string, @Body() voteDto: VoteDto) {
+    return this.roomsService.vote(roomId, voteDto.memberId, voteDto.value);
+  }
 
-    return this.roomsService.vote(roomId, body.memberId, body.value);
+  @Post(':roomId/leave')
+  leaveRoom(@Param('roomId') roomId: string, @Body() leaveRoomDto: LeaveRoomDto) {
+    return this.roomsService.leaveRoom(roomId, leaveRoomDto.memberId);
   }
 
   @Post(':roomId/reveal')

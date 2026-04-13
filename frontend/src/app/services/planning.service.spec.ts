@@ -34,7 +34,10 @@ describe('PlanningService', () => {
     service.reset('ab12');
 
     expect(http.post).toHaveBeenNthCalledWith(1, 'http://localhost:3000/rooms', {});
-    expect(http.post).toHaveBeenNthCalledWith(2, 'http://localhost:3000/rooms/AB12/join', { name: 'Alice' });
+    expect(http.post).toHaveBeenNthCalledWith(2, 'http://localhost:3000/rooms/AB12/join', {
+      name: 'Alice',
+      role: 'participant'
+    });
     expect(http.get).toHaveBeenCalledWith('http://localhost:3000/rooms/AB12');
     expect(http.post).toHaveBeenNthCalledWith(3, 'http://localhost:3000/rooms/AB12/vote', {
       memberId: 'member-1',

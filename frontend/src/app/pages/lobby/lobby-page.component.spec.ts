@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LobbyPageComponent } from './lobby-page.component';
-import { JoinRoomResponse, Room } from '../../models/planning.model';
+import { JoinRoomResponse, MemberRole, Room } from '../../models/planning.model';
 
 describe('LobbyPageComponent', () => {
   const room: Room = {
@@ -10,7 +10,9 @@ describe('LobbyPageComponent', () => {
     members: [],
     revealed: false,
     votes: {},
-    fibonacci: ['1', '2', '3', '5', '8'],
+    participantsCount: 0,
+    participantsVotedCount: 0,
+    allParticipantsVoted: false,
     updatedAt: '2026-04-07T00:00:00.000Z'
   };
 
@@ -30,7 +32,6 @@ describe('LobbyPageComponent', () => {
 
     component.planningService = planningService;
     component.router = router;
-    component.roomCode = signal('');
     component.userName = signal('');
     component.loading = signal(false);
     component.error = signal('');
@@ -54,7 +55,7 @@ describe('LobbyPageComponent', () => {
   it('creates a room, joins it and persists the member before navigating', () => {
     const { component, planningService, router } = createComponent();
     const response: JoinRoomResponse = {
-      member: { id: 'member-1', name: 'Alice' },
+      member: { id: 'member-1', name: 'Alice', role: MemberRole.Participant },
       room
     };
 
@@ -66,7 +67,9 @@ describe('LobbyPageComponent', () => {
 
     expect(planningService.createRoom).toHaveBeenCalledOnce();
     expect(planningService.joinRoom).toHaveBeenCalledWith('ABCD', 'Alice');
-    expect(sessionStorage.getItem('pp_member_ABCD')).toBe(JSON.stringify({ memberId: 'member-1', name: 'Alice' }));
+    expect(sessionStorage.getItem('pp_member_ABCD')).toBe(
+      JSON.stringify({ memberId: 'member-1', name: 'Alice', role: MemberRole.Participant })
+    );
     expect(router.navigate).toHaveBeenCalledWith(['/room', 'ABCD'], {
       state: { room, member: response.member }
     });
@@ -84,17 +87,5 @@ describe('LobbyPageComponent', () => {
 
     expect(component.loading()).toBe(false);
     expect(component.error()).toBe('Impossible de creer le salon.');
-  });
-
-  it('rejects empty room codes and uppercases navigation room codes', () => {
-    const { component, router } = createComponent();
-
-    component.goToRoom();
-    expect(component.error()).toBe('Le code du salon est obligatoire.');
-
-    component.roomCode.set(' ab12 ');
-    component.goToRoom();
-
-    expect(router.navigate).toHaveBeenCalledWith(['/room', 'AB12']);
   });
 });

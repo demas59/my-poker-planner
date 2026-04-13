@@ -12,17 +12,10 @@
       <button type="button" class="btn primary" (click)="createRoom()" [disabled]="loading()">
         Creer un salon
       </button>
-
-      <label>
-        Ou entrer un code room
-        <input type="text" maxlength="6" [(ngModel)]="roomCode" placeholder="ABC123" />
-      </label>
-
-      <button type="button" class="btn" (click)="goToRoom()" [disabled]="loading()">Acceder a la room</button>
     </div>
 
     @if (error()) {
-      <p class="error">{{ error() }}</p>
+    <p class="error">{{ error() }}</p>
     }
   </section>
 </main>

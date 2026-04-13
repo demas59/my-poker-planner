@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { switchMap } from 'rxjs/operators';
+import { MemberRole } from '../../models/planning.model';
 import { PlanningService } from '../../services/planning.service';
 
 @Component({
@@ -9,13 +10,13 @@ import { PlanningService } from '../../services/planning.service';
   standalone: true,
   imports: [FormsModule],
   templateUrl: './lobby-page.component.html',
-  styleUrl: './lobby-page.component.css'
+  styleUrl: './lobby-page.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LobbyPageComponent {
   private readonly planningService = inject(PlanningService);
   private readonly router = inject(Router);
 
-  readonly roomCode = signal('');
   readonly userName = signal('');
   readonly loading = signal(false);
   readonly error = signal('');
@@ -35,7 +36,7 @@ export class LobbyPageComponent {
       .pipe(switchMap((room) => this.planningService.joinRoom(room.roomId, name)))
       .subscribe({
         next: ({ member, room }) => {
-          this.persistMember(room.roomId, member.id, member.name);
+          this.persistMember(room.roomId, member.id, member.name, member.role);
           this.loading.set(false);
           this.router.navigate(['/room', room.roomId], {
             state: { room, member }
@@ -48,17 +49,7 @@ export class LobbyPageComponent {
       });
   }
 
-  goToRoom(): void {
-    const code = this.roomCode().trim().toUpperCase();
-    if (!code) {
-      this.error.set('Le code du salon est obligatoire.');
-      return;
-    }
-
-    this.router.navigate(['/room', code]);
-  }
-
-  private persistMember(roomId: string, memberId: string, name: string): void {
-    sessionStorage.setItem(`pp_member_${roomId}`, JSON.stringify({ memberId, name }));
+  private persistMember(roomId: string, memberId: string, name: string, role: MemberRole): void {
+    sessionStorage.setItem(`pp_member_${roomId}`, JSON.stringify({ memberId, name, role }));
   }
 }

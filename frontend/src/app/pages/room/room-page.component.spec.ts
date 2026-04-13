@@ -2,16 +2,18 @@ import { computed, signal } from '@angular/core';
 import { of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoomPageComponent } from './room-page.component';
-import { Member, Room } from '../../models/planning.model';
+import { Member, MemberRole, Room } from '../../models/planning.model';
 
 describe('RoomPageComponent', () => {
-  const currentMember: Member = { id: 'member-1', name: 'Alice' };
+  const currentMember: Member = { id: 'member-1', name: 'Alice', role: MemberRole.Participant };
   const room: Room = {
     roomId: 'ABCD',
     members: [currentMember],
     revealed: false,
     votes: { 'member-1': 'VOTED' },
-    fibonacci: ['1', '2', '3', '5', '8'],
+    participantsCount: 1,
+    participantsVotedCount: 0,
+    allParticipantsVoted: false,
     updatedAt: '2026-04-07T00:00:00.000Z'
   };
 
@@ -22,7 +24,8 @@ describe('RoomPageComponent', () => {
       reveal: vi.fn(),
       reset: vi.fn(),
       getRoom: vi.fn(),
-      streamRoom: vi.fn()
+      streamRoom: vi.fn(),
+      createRoom: vi.fn()
     };
     const route = {
       snapshot: {
@@ -31,29 +34,43 @@ describe('RoomPageComponent', () => {
         }
       }
     };
+    const router = {
+      navigate: vi.fn()
+    };
 
     const component = Object.create(RoomPageComponent.prototype) as RoomPageComponent & {
       document: Document;
       planningService: typeof planningService;
       route: typeof route;
+      router: typeof router;
       destroyRef: { onDestroy: (callback: () => void) => void };
     };
 
     component.document = document;
     component.planningService = planningService;
     component.route = route;
+    component.router = router;
     component.destroyRef = { onDestroy: vi.fn() };
     component.roomCode = signal('');
     component.room = signal<Room | null>(null);
     component.currentMember = signal<Member | null>(null);
-    component.selectedVote = signal<Room['fibonacci'][number] | null>(null);
+    component.selectedVote = signal<string | null>(null);
     component.userName = signal('');
+    component.userRole = signal(MemberRole.Participant);
     component.joinLoading = signal(false);
     component.voteLoading = signal(false);
     component.error = signal('');
+    component.roomNotFound = signal(false);
+    component.recreateLoading = signal(false);
     component.roomUrl = computed(() => `${component.document.location?.origin ?? ''}/room/${component.roomCode()}`);
+    component.canVote = computed(() => {
+      const member = component.currentMember();
+      if (member === null) return false;
+      return (component as never as { normalizeRole(r: unknown): string }).normalizeRole(member.role) === MemberRole.Participant;
+    });
+    component.canReveal = computed(() => Boolean(component.room() && component.currentMember() && component.room()?.allParticipantsVoted));
 
-    return { component, planningService, route };
+    return { component, planningService, route, router };
   };
 
   beforeEach(() => {
@@ -67,6 +84,38 @@ describe('RoomPageComponent', () => {
     component.roomCode.set('ABCD');
 
     expect(component.roomUrl()).toContain('/room/ABCD');
+  });
+
+  it('canVote is false when no member is joined', () => {
+    const { component } = createComponent();
+
+    expect(component.canVote()).toBe(false);
+  });
+
+  it('canVote is true for joined participant and false for joined observer', () => {
+    const { component } = createComponent();
+    const observer: Member = { id: 'observer-1', name: 'Oscar', role: MemberRole.Observer };
+
+    component.currentMember.set(currentMember);
+    expect(component.canVote()).toBe(true);
+
+    component.currentMember.set(observer);
+    expect(component.canVote()).toBe(false);
+  });
+
+  it('canReveal is true only when room exists, member is joined, and all participants voted', () => {
+    const { component } = createComponent();
+
+    expect(component.canReveal()).toBe(false);
+
+    component.room.set(room);
+    expect(component.canReveal()).toBe(false);
+
+    component.currentMember.set(currentMember);
+    expect(component.canReveal()).toBe(false);
+
+    component.room.set({ ...room, allParticipantsVoted: true });
+    expect(component.canReveal()).toBe(true);
   });
 
   it('stops initialization when the room id is missing', () => {
@@ -113,11 +162,13 @@ describe('RoomPageComponent', () => {
 
     component.joinRoom();
 
-    expect(planningService.joinRoom).toHaveBeenCalledWith('ABCD', 'Alice');
+    expect(planningService.joinRoom).toHaveBeenCalledWith('ABCD', 'Alice', MemberRole.Participant);
     expect(component.currentMember()).toEqual(currentMember);
     expect(component.room()).toEqual(room);
     expect(component.joinLoading()).toBe(false);
-    expect(sessionStorage.getItem('pp_member_ABCD')).toBe(JSON.stringify({ memberId: 'member-1', name: 'Alice' }));
+    expect(sessionStorage.getItem('pp_member_ABCD')).toBe(
+      JSON.stringify({ memberId: 'member-1', name: 'Alice', role: MemberRole.Participant })
+    );
   });
 
   it('handles join errors', () => {
@@ -152,10 +203,22 @@ describe('RoomPageComponent', () => {
 
   it('ignores vote requests when voting is not allowed', () => {
     const { component, planningService } = createComponent();
+    const observer: Member = { id: 'observer-1', name: 'Oscar', role: MemberRole.Observer };
 
     component.castVote('8');
     component.voteLoading.set(true);
     component.castVote('13');
+
+    component.voteLoading.set(false);
+    component.room.set({
+      ...room,
+      members: [currentMember, observer],
+      participantsCount: 1,
+      participantsVotedCount: 1,
+      allParticipantsVoted: true
+    });
+    component.currentMember.set(observer);
+    component.castVote('5');
 
     expect(planningService.vote).not.toHaveBeenCalled();
   });
@@ -174,15 +237,27 @@ describe('RoomPageComponent', () => {
     expect(component.voteLoading()).toBe(false);
   });
 
-  it('reveals votes only when a room is loaded', () => {
+  it('reveals votes only when allowed', () => {
     const { component, planningService } = createComponent();
-    const revealedRoom: Room = { ...room, revealed: true, votes: { 'member-1': '8' } };
+    const revealedRoom: Room = {
+      ...room,
+      revealed: true,
+      votes: { 'member-1': '8' },
+      participantsVotedCount: 1,
+      allParticipantsVoted: true
+    };
 
     component.revealVotes();
     expect(planningService.reveal).not.toHaveBeenCalled();
 
     component.roomCode.set('ABCD');
     component.room.set(room);
+    component.currentMember.set(currentMember);
+    component.revealVotes();
+    expect(component.error()).toBe('Impossible de reveler: tous les participants doivent voter.');
+
+    component.error.set('');
+    component.room.set({ ...room, participantsVotedCount: 1, allParticipantsVoted: true });
     planningService.reveal.mockReturnValue(of(revealedRoom));
 
     component.revealVotes();
@@ -195,7 +270,8 @@ describe('RoomPageComponent', () => {
     const { component, planningService } = createComponent();
 
     component.roomCode.set('ABCD');
-    component.room.set(room);
+    component.room.set({ ...room, participantsVotedCount: 1, allParticipantsVoted: true });
+    component.currentMember.set(currentMember);
     planningService.reveal.mockReturnValue(throwError(() => new Error('boom')));
 
     component.revealVotes();
@@ -241,7 +317,7 @@ describe('RoomPageComponent', () => {
     expect(component.memberVote('member-1')).toBe('VOTED');
   });
 
-  it('fetches the room once and handles errors', () => {
+  it('fetches the room once and sets roomNotFound on error', () => {
     const { component, planningService } = createComponent();
     const applySpy = vi.spyOn(component as never, 'applyRoomUpdate' as never);
 
@@ -250,10 +326,11 @@ describe('RoomPageComponent', () => {
     (component as never).fetchRoomOnce();
     expect(planningService.getRoom).toHaveBeenCalledWith('ABCD');
     expect(applySpy).toHaveBeenCalledWith(room);
+    expect(component.roomNotFound()).toBe(false);
 
     planningService.getRoom.mockReturnValueOnce(throwError(() => new Error('boom')));
     (component as never).fetchRoomOnce();
-    expect(component.error()).toBe('Impossible de charger la room.');
+    expect(component.roomNotFound()).toBe(true);
   });
 
   it('applies room updates coming from the event stream and handles stream errors', () => {
@@ -283,17 +360,24 @@ describe('RoomPageComponent', () => {
     expect(component.room()).toEqual(room);
     expect(component.currentMember()).toEqual(currentMember);
     expect(component.userName()).toBe('Alice');
-    expect(sessionStorage.getItem('pp_member_ABCD')).toBe(JSON.stringify({ memberId: 'member-1', name: 'Alice' }));
+    expect(component.userRole()).toBe(MemberRole.Participant);
+    expect(sessionStorage.getItem('pp_member_ABCD')).toBe(
+      JSON.stringify({ memberId: 'member-1', name: 'Alice', role: MemberRole.Participant })
+    );
   });
 
   it('restores the member from session storage and clears invalid data', () => {
     const { component } = createComponent();
 
     component.roomCode.set('ABCD');
-    sessionStorage.setItem('pp_member_ABCD', JSON.stringify({ memberId: 'member-1', name: 'Alice' }));
+    sessionStorage.setItem(
+      'pp_member_ABCD',
+      JSON.stringify({ memberId: 'member-1', name: 'Alice', role: MemberRole.Participant })
+    );
     (component as never).restoreMember();
     expect(component.currentMember()).toEqual(currentMember);
     expect(component.userName()).toBe('Alice');
+    expect(component.userRole()).toBe(MemberRole.Participant);
 
     component.currentMember.set(null);
     sessionStorage.setItem('pp_member_ABCD', '{invalid');
@@ -301,8 +385,50 @@ describe('RoomPageComponent', () => {
     expect(sessionStorage.getItem('pp_member_ABCD')).toBe(null);
   });
 
-  it('clears the member when a room update removes them and resets the vote when needed', () => {
+  it('requires a username before recreating a room', () => {
+    const { component, planningService } = createComponent();
+
+    component.recreateRoom();
+
+    expect(component.error()).toBe('Ton nom est obligatoire pour recreer le salon.');
+    expect(planningService.createRoom).not.toHaveBeenCalled();
+  });
+
+  it('recreates a room, joins it and navigates to the new room', () => {
+    const { component, planningService, router } = createComponent();
+    const newRoom: Room = { ...room, roomId: 'NEWID' };
+    const response = { member: currentMember, room: newRoom };
+
+    component.userName.set(' Alice ');
+    planningService.createRoom.mockReturnValue(of(newRoom));
+    planningService.joinRoom.mockReturnValue(of(response));
+
+    component.recreateRoom();
+
+    expect(planningService.createRoom).toHaveBeenCalledOnce();
+    expect(planningService.joinRoom).toHaveBeenCalledWith('NEWID', 'Alice', MemberRole.Participant);
+    expect(router.navigate).toHaveBeenCalledWith(['/room', 'NEWID'], {
+      state: { room: newRoom, member: currentMember }
+    });
+    expect(component.recreateLoading()).toBe(false);
+    expect(component.error()).toBe('');
+  });
+
+  it('handles recreate room errors', () => {
+    const { component, planningService } = createComponent();
+
+    component.userName.set('Alice');
+    planningService.createRoom.mockReturnValue(throwError(() => new Error('boom')));
+
+    component.recreateRoom();
+
+    expect(component.recreateLoading()).toBe(false);
+    expect(component.error()).toBe('Impossible de recreer le salon.');
+  });
+
+  it('keeps observers without selected vote and updates participants selected vote on reveal', () => {
     const { component } = createComponent();
+    const observer: Member = { id: 'observer-1', name: 'Oscar', role: MemberRole.Observer };
 
     component.roomCode.set('ABCD');
     component.currentMember.set(currentMember);
@@ -318,5 +444,14 @@ describe('RoomPageComponent', () => {
 
     (component as never).applyRoomUpdate({ ...room, revealed: true, votes: { 'member-1': '13' } });
     expect(component.selectedVote()).toBe('13');
+
+    component.currentMember.set(observer);
+    (component as never).applyRoomUpdate({
+      ...room,
+      members: [currentMember, observer],
+      revealed: true,
+      votes: { 'member-1': '13' }
+    });
+    expect(component.selectedVote()).toBe(null);
   });
 });
